@@ -1,0 +1,21 @@
+{
+  "name": "rest-api-demo",
+  "version": "1.0.0",
+  "description": "Simple REST API demo using Express.js",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "PORT=3000 node app.js",
+    "prod": "pm2 start app.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0"
+  },
+  "devDependencies": {
+    "pm2": "^5.3.0"
+  }
+}

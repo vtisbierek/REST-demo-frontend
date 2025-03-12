@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Library</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Book Library</h1>
+        
+        <div id="authSection">
+            <div class="auth-form">
+                <h2>Register</h2>
+                <form id="registerForm">
+                    <input type="text" id="regUsername" placeholder="Username" required>
+                    <input type="password" id="regPassword" placeholder="Password" required>
+                    <button type="submit">Register</button>
+                </form>
+            </div>
+
+            <div class="auth-form">
+                <h2>Login</h2>
+                <form id="loginForm">
+                    <input type="text" id="loginUsername" placeholder="Username" required>
+                    <input type="password" id="loginPassword" placeholder="Password" required>
+                    <button type="submit">Login</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="bookSection" style="display: none;">
+            <button id="logoutButton" class="logout-btn">Logout</button>
+            
+            <div class="add-book-form">
+                <h2>Add New Book</h2>
+                <form id="addBookForm">
+                    <input type="text" id="title" placeholder="Book Title" required>
+                    <input type="text" id="author" placeholder="Author" required>
+                    <button type="submit">Add Book</button>
+                </form>
+            </div>
+
+            <div class="books-list">
+                <h2>Books</h2>
+                <div id="booksList"></div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html> 
