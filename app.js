@@ -9,20 +9,73 @@ const jwt = require('jsonwebtoken');
 
 const app = express();
 const port = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const TOKEN_EXPIRY = '24h';
 
-// 1. Regular middleware
+// 2. Basic middleware
 app.use(cors());
 app.use(bodyParser.json());
 app.use(helmet());
 app.use(express.static('public'));
 
-// 2. Error handling middleware (move it here)
+// 3. Authentication middleware (move these up!)
+const authenticateAdmin = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader) {
+        res.setHeader('WWW-Authenticate', 'Basic');
+        return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const auth = Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
+    const username = auth[0];
+    const password = auth[1];
+
+    // Need to replace these with secure credentials (preferably in environment variables)
+    if (username === 'admin' && password === 'adminpass') {
+        next();
+    } else {
+        res.setHeader('WWW-Authenticate', 'Basic');
+        res.status(401).json({ error: "Invalid credentials" });
+    }
+};
+
+const authenticateUser = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+        // Remove 'Bearer ' from token
+        const token = authHeader.split(' ')[1];
+        // Verify token
+        const decoded = jwt.verify(token, JWT_SECRET);
+        
+        // Find user
+        const user = users.find(u => u.username === decoded.username);
+        if (!user) {
+            return res.status(401).json({ error: "User not found" });
+        }
+
+        // Add user info to request
+        req.user = user;
+        next();
+    } catch (error) {
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: "Token expired" });
+        }
+        return res.status(401).json({ error: "Invalid token" });
+    }
+};
+
+// 4. Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({ error: 'Something went wrong!' });
 });
 
-// 3. Routes
+// 5. Routes
 app.post('/api/register', (req, res) => {
     const { username, password } = req.body;
     
@@ -189,62 +242,6 @@ function logOperation(operation, user, details) {
     const logEntry = `${timestamp} - User: ${user} - ${operation} - ${details}\n`;
     fs.appendFileSync(path.join(__dirname, 'operations.log'), logEntry);
 }
-
-// Basic Authentication Middleware for logs
-const authenticateAdmin = (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader) {
-        res.setHeader('WWW-Authenticate', 'Basic');
-        return res.status(401).json({ error: "Authentication required" });
-    }
-
-    const auth = Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
-    const username = auth[0];
-    const password = auth[1];
-
-    // Need to replace these with secure credentials (preferably in environment variables)
-    if (username === 'admin' && password === 'adminpass') {
-        next();
-    } else {
-        res.setHeader('WWW-Authenticate', 'Basic');
-        res.status(401).json({ error: "Invalid credentials" });
-    }
-};
-
-// Add this near the top with other constants
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'; // In production, must use environment variable
-const TOKEN_EXPIRY = '24h'; // Token expires in 24 hours
-
-// Update the authentication middleware
-const authenticateUser = (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-        return res.status(401).json({ error: "Authentication required" });
-    }
-
-    try {
-        // Remove 'Bearer ' from token
-        const token = authHeader.split(' ')[1];
-        // Verify token
-        const decoded = jwt.verify(token, JWT_SECRET);
-        
-        // Find user
-        const user = users.find(u => u.username === decoded.username);
-        if (!user) {
-            return res.status(401).json({ error: "User not found" });
-        }
-
-        // Add user info to request
-        req.user = user;
-        next();
-    } catch (error) {
-        if (error.name === 'TokenExpiredError') {
-            return res.status(401).json({ error: "Token expired" });
-        }
-        return res.status(401).json({ error: "Invalid token" });
-    }
-};
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
