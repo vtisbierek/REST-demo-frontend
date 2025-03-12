@@ -18,7 +18,13 @@ app.use(bodyParser.json());
 app.use(helmet());
 app.use(express.static('public'));
 
-// 3. Authentication middleware (move these up!)
+// Add this with your other middleware
+app.use((req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+});
+
+// 3. Authentication middleware
 const authenticateAdmin = (req, res, next) => {
     const authHeader = req.headers.authorization;
     
@@ -69,6 +75,30 @@ const authenticateUser = (req, res, next) => {
     }
 };
 
+// Add this with other middleware
+const authenticateBasic = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader) {
+        res.setHeader('WWW-Authenticate', 'Basic');
+        return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const auth = Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
+    const username = auth[0];
+    const password = auth[1];
+
+    // Find user and check credentials
+    const user = users.find(u => u.username === username && u.password === password);
+    if (!user) {
+        res.setHeader('WWW-Authenticate', 'Basic');
+        return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    req.user = user;
+    next();
+};
+
 // 4. Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
@@ -76,7 +106,7 @@ app.use((err, req, res, next) => {
 });
 
 // 5. Routes
-app.post('/api/register', (req, res) => {
+app.post('/auth/register', (req, res) => {
     const { username, password } = req.body;
     
     if (!username || !password) {
@@ -106,7 +136,7 @@ app.post('/api/register', (req, res) => {
     res.status(201).json({ token });
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/auth/login', (req, res) => {
     const { username, password } = req.body;
     
     const user = users.find(u => u.username === username && u.password === password);
@@ -125,11 +155,11 @@ app.post('/api/login', (req, res) => {
     res.json({ token });
 });
 
-app.get('/api/books', (req, res) => {
+app.get('/books', (req, res) => {
     res.json(books);
 });
 
-app.get('/api/books/:id', (req, res) => {
+app.get('/books/:id', (req, res) => {
     const book = books.find(b => b.id === parseInt(req.params.id));
     if (!book) {
         return res.status(404).json({ error: "Book not found" });
@@ -137,7 +167,7 @@ app.get('/api/books/:id', (req, res) => {
     res.json(book);
 });
 
-app.post('/api/books', authenticateUser, (req, res) => {
+app.post('/books', authenticateUser, (req, res) => {
     if (!req.body.title || !req.body.author) {
         return res.status(400).json({ error: "Title and author are required" });
     }
@@ -154,7 +184,7 @@ app.post('/api/books', authenticateUser, (req, res) => {
     res.status(201).json(newBook);
 });
 
-app.put('/api/books/:id', authenticateUser, (req, res) => {
+app.put('/books/:id', authenticateUser, (req, res) => {
     const book = books.find(b => b.id === parseInt(req.params.id));
     if (!book) {
         return res.status(404).json({ error: "Book not found" });
@@ -172,7 +202,7 @@ app.put('/api/books/:id', authenticateUser, (req, res) => {
     res.json(book);
 });
 
-app.delete('/api/books/:id', authenticateUser, (req, res) => {
+app.delete('/books/:id', authenticateUser, (req, res) => {
     const bookIndex = books.findIndex(b => b.id === parseInt(req.params.id));
     if (bookIndex === -1) {
         return res.status(404).json({ error: "Book not found" });
@@ -192,6 +222,41 @@ app.get('/api/logs', authenticateAdmin, (req, res) => {
     } catch (error) {
         res.status(500).json({ error: "Could not retrieve logs" });
     }
+});
+
+// Replace the placeholder API endpoints with actual implementations
+app.get('/api/books', authenticateBasic, (req, res) => {
+    res.json(books);
+});
+
+app.post('/api/books', authenticateBasic, (req, res) => {
+    if (!req.body.title || !req.body.author) {
+        return res.status(400).json({ error: "Title and author are required" });
+    }
+
+    const newBook = {
+        id: books.length > 0 ? books[books.length - 1].id + 1 : 1,
+        title: req.body.title,
+        author: req.body.author
+    };
+    
+    books.push(newBook);
+    saveBooks();
+    logOperation('CREATE', req.user.username, `Added book: ${newBook.title}`);
+    res.status(201).json(newBook);
+});
+
+app.delete('/api/books/:id', authenticateBasic, (req, res) => {
+    const bookIndex = books.findIndex(b => b.id === parseInt(req.params.id));
+    if (bookIndex === -1) {
+        return res.status(404).json({ error: "Book not found" });
+    }
+
+    const deletedBook = books[bookIndex];
+    books.splice(bookIndex, 1);
+    saveBooks();
+    logOperation('DELETE', req.user.username, `Deleted book: ${deletedBook.title}`);
+    res.json({ message: "Book deleted" });
 });
 
 // Load books from file on startup

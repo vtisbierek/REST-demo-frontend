@@ -1,6 +1,45 @@
 let userToken = localStorage.getItem('userToken');
 
-// Function to check if user is logged in
+// Token validation functions
+function isTokenExpired(token) {
+    if (!token) return true;
+    
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const payload = JSON.parse(window.atob(base64));
+        
+        return payload.exp * 1000 < Date.now();
+    } catch (error) {
+        return true;
+    }
+}
+
+// API helper function
+async function fetchWithAuth(url, options = {}) {
+    if (userToken) {
+        options.headers = {
+            ...options.headers,
+            'Authorization': `Bearer ${userToken}`
+        };
+    }
+
+    const response = await fetch(url, options);
+    
+    if (response.status === 401) {
+        const data = await response.json();
+        if (data.error === "Token expired") {
+            localStorage.removeItem('userToken');
+            userToken = null;
+            updateAuthUI();
+            alert("Session expired. Please login again.");
+        }
+    }
+    
+    return response;
+}
+
+// Authentication state functions
 function isLoggedIn() {
     const token = localStorage.getItem('userToken');
     if (isTokenExpired(token)) {
@@ -10,7 +49,6 @@ function isLoggedIn() {
     return true;
 }
 
-// Function to update UI based on auth state
 function updateAuthUI() {
     const authSection = document.getElementById('authSection');
     const bookSection = document.getElementById('bookSection');
@@ -33,7 +71,7 @@ async function register(event) {
     const password = document.getElementById('regPassword').value;
 
     try {
-        const response = await fetch('http://localhost:3000/api/register', {
+        const response = await fetch('http://localhost:3000/auth/register', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -63,7 +101,7 @@ async function login(event) {
     const password = document.getElementById('loginPassword').value;
 
     try {
-        const response = await fetch('http://localhost:3000/api/login', {
+        const response = await fetch('http://localhost:3000/auth/login', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -95,7 +133,7 @@ function logout() {
 // Function to fetch all books
 async function fetchBooks() {
     try {
-        const response = await fetchWithAuth('http://localhost:3000/api/books');
+        const response = await fetchWithAuth('http://localhost:3000/books');
         const books = await response.json();
         displayBooks(books);
     } catch (error) {
@@ -135,11 +173,10 @@ async function addBook(event) {
     const author = document.getElementById('author').value;
 
     try {
-        const response = await fetch('http://localhost:3000/api/books', {
+        const response = await fetchWithAuth('http://localhost:3000/books', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': userToken
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({ title, author })
         });
@@ -156,22 +193,19 @@ async function addBook(event) {
     }
 }
 
-// Add the deleteBook function
+// Function to delete a book
 async function deleteBook(id) {
     if (!confirm('Are you sure you want to delete this book?')) {
         return;
     }
 
     try {
-        const response = await fetch(`http://localhost:3000/api/books/${id}`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': userToken
-            }
+        const response = await fetchWithAuth(`http://localhost:3000/books/${id}`, {
+            method: 'DELETE'
         });
 
         if (response.ok) {
-            fetchBooks(); // Refresh the books list
+            fetchBooks();
         } else {
             const data = await response.json();
             alert(data.error);
@@ -188,43 +222,4 @@ document.getElementById('logoutButton').addEventListener('click', logout);
 document.getElementById('addBookForm').addEventListener('submit', addBook);
 
 // Initialize UI
-updateAuthUI();
-
-// Add this function to check if token is expired
-function isTokenExpired(token) {
-    if (!token) return true;
-    
-    try {
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const payload = JSON.parse(window.atob(base64));
-        
-        return payload.exp * 1000 < Date.now();
-    } catch (error) {
-        return true;
-    }
-}
-
-// Add error handling for expired tokens in fetch requests
-async function fetchWithAuth(url, options = {}) {
-    if (userToken) {
-        options.headers = {
-            ...options.headers,
-            'Authorization': `Bearer ${userToken}`
-        };
-    }
-
-    const response = await fetch(url, options);
-    
-    if (response.status === 401) {
-        const data = await response.json();
-        if (data.error === "Token expired") {
-            localStorage.removeItem('userToken');
-            userToken = null;
-            updateAuthUI();
-            alert("Session expired. Please login again.");
-        }
-    }
-    
-    return response;
-} 
+updateAuthUI(); 
