@@ -10,17 +10,136 @@ const jwt = require('jsonwebtoken');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Add cors middleware before other middleware
+// 1. Regular middleware
 app.use(cors());
-
-// Middleware to parse JSON bodies
 app.use(bodyParser.json());
-
-// Add this near the top, after creating the app
 app.use(helmet());
-
-// Add this line to serve static files from 'public' directory
 app.use(express.static('public'));
+
+// 2. Error handling middleware (move it here)
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ error: 'Something went wrong!' });
+});
+
+// 3. Routes
+app.post('/api/register', (req, res) => {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+        return res.status(400).json({ error: "Username and password are required" });
+    }
+
+    if (users.some(u => u.username === username)) {
+        return res.status(400).json({ error: "Username already exists" });
+    }
+
+    const user = {
+        username,
+        password, // precisa de hashing pra prod!
+    };
+
+    users.push(user);
+    saveUsers();
+
+    // Generate JWT token
+    const token = jwt.sign(
+        { username: user.username },
+        JWT_SECRET,
+        { expiresIn: TOKEN_EXPIRY }
+    );
+
+    logOperation('REGISTER', username, 'New user registered');
+    res.status(201).json({ token });
+});
+
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    
+    const user = users.find(u => u.username === username && u.password === password);
+    if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // Generate new JWT token
+    const token = jwt.sign(
+        { username: user.username },
+        JWT_SECRET,
+        { expiresIn: TOKEN_EXPIRY }
+    );
+
+    logOperation('LOGIN', username, 'User logged in');
+    res.json({ token });
+});
+
+app.get('/api/books', (req, res) => {
+    res.json(books);
+});
+
+app.get('/api/books/:id', (req, res) => {
+    const book = books.find(b => b.id === parseInt(req.params.id));
+    if (!book) {
+        return res.status(404).json({ error: "Book not found" });
+    }
+    res.json(book);
+});
+
+app.post('/api/books', authenticateUser, (req, res) => {
+    if (!req.body.title || !req.body.author) {
+        return res.status(400).json({ error: "Title and author are required" });
+    }
+
+    const newBook = {
+        id: books.length > 0 ? books[books.length - 1].id + 1 : 1,
+        title: req.body.title,
+        author: req.body.author
+    };
+    
+    books.push(newBook);
+    saveBooks(); // Save to file after adding new book
+    logOperation('CREATE', req.user.username, `Added book: ${newBook.title}`);
+    res.status(201).json(newBook);
+});
+
+app.put('/api/books/:id', authenticateUser, (req, res) => {
+    const book = books.find(b => b.id === parseInt(req.params.id));
+    if (!book) {
+        return res.status(404).json({ error: "Book not found" });
+    }
+
+    if (!req.body) {
+        return res.status(400).json({ error: "Bad request" });
+    }
+
+    book.title = req.body.title || book.title;
+    book.author = req.body.author || book.author;
+    
+    saveBooks(); // Save to file after updating book
+    logOperation('UPDATE', req.user.username, `Updated book: ${book.title}`);
+    res.json(book);
+});
+
+app.delete('/api/books/:id', authenticateUser, (req, res) => {
+    const bookIndex = books.findIndex(b => b.id === parseInt(req.params.id));
+    if (bookIndex === -1) {
+        return res.status(404).json({ error: "Book not found" });
+    }
+
+    const deletedBook = books[bookIndex];
+    books.splice(bookIndex, 1);
+    saveBooks(); // Save to file after deleting book
+    logOperation('DELETE', req.user.username, `Deleted book: ${deletedBook.title}`);
+    res.json({ message: "Book deleted" });
+});
+
+app.get('/api/logs', authenticateAdmin, (req, res) => {
+    try {
+        const logs = fs.readFileSync(path.join(__dirname, 'operations.log'), 'utf8');
+        res.send(logs);
+    } catch (error) {
+        res.status(500).json({ error: "Could not retrieve logs" });
+    }
+});
 
 // Load books from file on startup
 let books = [];
@@ -84,7 +203,7 @@ const authenticateAdmin = (req, res, next) => {
     const username = auth[0];
     const password = auth[1];
 
-    // Replace these with secure credentials (preferably in environment variables)
+    // Need to replace these with secure credentials (preferably in environment variables)
     if (username === 'admin' && password === 'adminpass') {
         next();
     } else {
@@ -94,134 +213,8 @@ const authenticateAdmin = (req, res, next) => {
 };
 
 // Add this near the top with other constants
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'; // In production, always use environment variable
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'; // In production, must use environment variable
 const TOKEN_EXPIRY = '24h'; // Token expires in 24 hours
-
-// Update the user registration
-app.post('/api/register', (req, res) => {
-    const { username, password } = req.body;
-    
-    if (!username || !password) {
-        return res.status(400).json({ error: "Username and password are required" });
-    }
-
-    if (users.some(u => u.username === username)) {
-        return res.status(400).json({ error: "Username already exists" });
-    }
-
-    const user = {
-        username,
-        password, // Still needs hashing!
-    };
-
-    users.push(user);
-    saveUsers();
-
-    // Generate JWT token
-    const token = jwt.sign(
-        { username: user.username },
-        JWT_SECRET,
-        { expiresIn: TOKEN_EXPIRY }
-    );
-
-    logOperation('REGISTER', username, 'New user registered');
-    res.status(201).json({ token });
-});
-
-// Update the login endpoint
-app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
-    
-    const user = users.find(u => u.username === username && u.password === password);
-    if (!user) {
-        return res.status(401).json({ error: "Invalid credentials" });
-    }
-
-    // Generate new JWT token
-    const token = jwt.sign(
-        { username: user.username },
-        JWT_SECRET,
-        { expiresIn: TOKEN_EXPIRY }
-    );
-
-    logOperation('LOGIN', username, 'User logged in');
-    res.json({ token });
-});
-
-// GET all books
-app.get('/api/books', (req, res) => {
-    res.json(books);
-});
-
-// GET a specific book by ID
-app.get('/api/books/:id', (req, res) => {
-    const book = books.find(b => b.id === parseInt(req.params.id));
-    if (!book) {
-        return res.status(404).json({ error: "Book not found" });
-    }
-    res.json(book);
-});
-
-// POST a new book
-app.post('/api/books', authenticateUser, (req, res) => {
-    if (!req.body.title || !req.body.author) {
-        return res.status(400).json({ error: "Title and author are required" });
-    }
-
-    const newBook = {
-        id: books.length > 0 ? books[books.length - 1].id + 1 : 1,
-        title: req.body.title,
-        author: req.body.author
-    };
-    
-    books.push(newBook);
-    saveBooks(); // Save to file after adding new book
-    logOperation('CREATE', req.user.username, `Added book: ${newBook.title}`);
-    res.status(201).json(newBook);
-});
-
-// PUT/UPDATE a book
-app.put('/api/books/:id', authenticateUser, (req, res) => {
-    const book = books.find(b => b.id === parseInt(req.params.id));
-    if (!book) {
-        return res.status(404).json({ error: "Book not found" });
-    }
-
-    if (!req.body) {
-        return res.status(400).json({ error: "Bad request" });
-    }
-
-    book.title = req.body.title || book.title;
-    book.author = req.body.author || book.author;
-    
-    saveBooks(); // Save to file after updating book
-    logOperation('UPDATE', req.user.username, `Updated book: ${book.title}`);
-    res.json(book);
-});
-
-// DELETE a book
-app.delete('/api/books/:id', authenticateUser, (req, res) => {
-    const bookIndex = books.findIndex(b => b.id === parseInt(req.params.id));
-    if (bookIndex === -1) {
-        return res.status(404).json({ error: "Book not found" });
-    }
-
-    const deletedBook = books[bookIndex];
-    books.splice(bookIndex, 1);
-    saveBooks(); // Save to file after deleting book
-    logOperation('DELETE', req.user.username, `Deleted book: ${deletedBook.title}`);
-    res.json({ message: "Book deleted" });
-});
-
-// Get logs (admin only)
-app.get('/api/logs', authenticateAdmin, (req, res) => {
-    try {
-        const logs = fs.readFileSync(path.join(__dirname, 'operations.log'), 'utf8');
-        res.send(logs);
-    } catch (error) {
-        res.status(500).json({ error: "Could not retrieve logs" });
-    }
-});
 
 // Update the authentication middleware
 const authenticateUser = (req, res, next) => {
@@ -236,7 +229,7 @@ const authenticateUser = (req, res, next) => {
         // Verify token
         const decoded = jwt.verify(token, JWT_SECRET);
         
-        // Find user (optional, depends if you need user info)
+        // Find user
         const user = users.find(u => u.username === decoded.username);
         if (!user) {
             return res.status(401).json({ error: "User not found" });
@@ -252,12 +245,6 @@ const authenticateUser = (req, res, next) => {
         return res.status(401).json({ error: "Invalid token" });
     }
 };
-
-// Add this before your routes
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ error: 'Something went wrong!' });
-});
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
