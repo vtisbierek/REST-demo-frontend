@@ -10,7 +10,8 @@ const jwt = require('jsonwebtoken');
 const app = express();
 const port = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const TOKEN_EXPIRY = '24h';
+const TOKEN_EXPIRY = '7d';
+const PING_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 // 2. Basic middleware
 app.use(cors());
@@ -327,6 +328,12 @@ if (books.length === 0) {
     ];
     saveBooks();
 }
+
+// Keep the server alive
+setInterval(() => {
+    fetch('https://your-render-url.onrender.com/books')
+        .catch(console.error);
+}, PING_INTERVAL);
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);

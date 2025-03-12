@@ -42,7 +42,9 @@ async function fetchWithAuth(url, options = {}) {
 // Authentication state functions
 function isLoggedIn() {
     const token = localStorage.getItem('userToken');
+    console.log('Checking token:', token);
     if (isTokenExpired(token)) {
+        console.log('Token expired or invalid');
         localStorage.removeItem('userToken');
         return false;
     }
