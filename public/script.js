@@ -71,7 +71,7 @@ async function register(event) {
     const password = document.getElementById('regPassword').value;
 
     try {
-        const response = await fetch('http://localhost:3000/auth/register', {
+        const response = await fetch('/auth/register', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -101,7 +101,7 @@ async function login(event) {
     const password = document.getElementById('loginPassword').value;
 
     try {
-        const response = await fetch('http://localhost:3000/auth/login', {
+        const response = await fetch('/auth/login', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -133,7 +133,7 @@ function logout() {
 // Function to fetch all books
 async function fetchBooks() {
     try {
-        const response = await fetchWithAuth('http://localhost:3000/books');
+        const response = await fetchWithAuth('/books');
         const books = await response.json();
         displayBooks(books);
     } catch (error) {
@@ -173,7 +173,7 @@ async function addBook(event) {
     const author = document.getElementById('author').value;
 
     try {
-        const response = await fetchWithAuth('http://localhost:3000/books', {
+        const response = await fetchWithAuth('/books', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -200,7 +200,7 @@ async function deleteBook(id) {
     }
 
     try {
-        const response = await fetchWithAuth(`http://localhost:3000/books/${id}`, {
+        const response = await fetchWithAuth(`/books/${id}`, {
             method: 'DELETE'
         });
 
