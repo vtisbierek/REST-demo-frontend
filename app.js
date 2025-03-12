@@ -310,6 +310,24 @@ function logOperation(operation, user, details) {
     fs.appendFileSync(path.join(__dirname, 'operations.log'), logEntry);
 }
 
+// If no users exist, create a demo user
+if (users.length === 0) {
+    users.push({
+        username: "demo",
+        password: "demo123"  // Don't do this in production!
+    });
+    saveUsers();
+}
+
+// If no books exist, add sample books
+if (books.length === 0) {
+    books = [
+        { id: 1, title: "The Great Gatsby", author: "F. Scott Fitzgerald" },
+        { id: 2, title: "1984", author: "George Orwell" }
+    ];
+    saveBooks();
+}
+
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 }); 
