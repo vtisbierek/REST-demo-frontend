@@ -25,6 +25,7 @@ app.use((req, res, next) => {
 });
 
 // 3. Authentication middleware
+//for admin calls
 const authenticateAdmin = (req, res, next) => {
     const authHeader = req.headers.authorization;
     
@@ -46,6 +47,7 @@ const authenticateAdmin = (req, res, next) => {
     }
 };
 
+//for internal calls
 const authenticateUser = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -75,7 +77,7 @@ const authenticateUser = (req, res, next) => {
     }
 };
 
-// Add this with other middleware
+// for API calls
 const authenticateBasic = (req, res, next) => {
     const authHeader = req.headers.authorization;
     
@@ -159,14 +161,6 @@ app.get('/books', (req, res) => {
     res.json(books);
 });
 
-app.get('/books/:id', (req, res) => {
-    const book = books.find(b => b.id === parseInt(req.params.id));
-    if (!book) {
-        return res.status(404).json({ error: "Book not found" });
-    }
-    res.json(book);
-});
-
 app.post('/books', authenticateUser, (req, res) => {
     if (!req.body.title || !req.body.author) {
         return res.status(400).json({ error: "Title and author are required" });
@@ -182,24 +176,6 @@ app.post('/books', authenticateUser, (req, res) => {
     saveBooks(); // Save to file after adding new book
     logOperation('CREATE', req.user.username, `Added book: ${newBook.title}`);
     res.status(201).json(newBook);
-});
-
-app.put('/books/:id', authenticateUser, (req, res) => {
-    const book = books.find(b => b.id === parseInt(req.params.id));
-    if (!book) {
-        return res.status(404).json({ error: "Book not found" });
-    }
-
-    if (!req.body) {
-        return res.status(400).json({ error: "Bad request" });
-    }
-
-    book.title = req.body.title || book.title;
-    book.author = req.body.author || book.author;
-    
-    saveBooks(); // Save to file after updating book
-    logOperation('UPDATE', req.user.username, `Updated book: ${book.title}`);
-    res.json(book);
 });
 
 app.delete('/books/:id', authenticateUser, (req, res) => {
@@ -257,6 +233,32 @@ app.delete('/api/books/:id', authenticateBasic, (req, res) => {
     saveBooks();
     logOperation('DELETE', req.user.username, `Deleted book: ${deletedBook.title}`);
     res.json({ message: "Book deleted" });
+});
+
+app.put('/api/books/:id', authenticateBasic, (req, res) => {
+    const book = books.find(b => b.id === parseInt(req.params.id));
+    if (!book) {
+        return res.status(404).json({ error: "Book not found" });
+    }
+
+    if (!req.body) {
+        return res.status(400).json({ error: "Bad request" });
+    }
+
+    book.title = req.body.title || book.title;
+    book.author = req.body.author || book.author;
+    
+    saveBooks();
+    logOperation('UPDATE', req.user.username, `Updated book: ${book.title}`);
+    res.json(book);
+});
+
+app.get('/api/books/:id', authenticateBasic, (req, res) => {
+    const book = books.find(b => b.id === parseInt(req.params.id));
+    if (!book) {
+        return res.status(404).json({ error: "Book not found" });
+    }
+    res.json(book);
 });
 
 // Load books from file on startup
